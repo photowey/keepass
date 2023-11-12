@@ -14,33 +14,30 @@
  * limitations under the License.
  */
 
-package app
+package root
 
 import (
-	"fmt"
-	"os"
+	"path/filepath"
+	"strings"
 
-	"github.com/spf13/cobra"
-
-	"github.com/photowey/keepass/internal/version"
+	"github.com/photowey/keepass/configs"
+	"github.com/photowey/keepass/internal/home"
+	"github.com/photowey/keepass/pkg/filez"
 )
 
-var root = &cobra.Command{
-	Use:     "keepass",
-	Short:   "Password manager",
-	Long:    "A cmd password manager implemented in Go.",
-	Version: version.Now(),
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("Welcome to keepass cmder %s~", version.Now())
-	},
+func onInit() {
+	home.KeepassHome()
+	configLoad()
 }
 
-func init() {
-}
+func configLoad() {
+	keepassHome := home.Dir
+	keepassConfigFile := filepath.Join(keepassHome, strings.ToLower(home.KeepassConfig))
+	if filez.FileExists(keepassHome, home.KeepassConfig) {
+		configs.Init(keepassConfigFile)
 
-func Run() {
-	if err := root.Execute(); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		return
 	}
+
+	// fmt.Printf("keepass config file not exists\n")
 }

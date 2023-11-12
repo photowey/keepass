@@ -14,13 +14,6 @@
  * limitations under the License.
  */
 
-package version
+package root
 
-const (
-	versionNow         = "1.0.0"
-	fixedVersionPrefix = "v"
-)
-
-func Now() string {
-	return fixedVersionPrefix + versionNow
-}
+// root is the root package of keepass cmder.

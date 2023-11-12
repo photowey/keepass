@@ -17,9 +17,14 @@
 package main
 
 import (
-	App "github.com/photowey/keepass/cmd/cmder/app"
+	App "github.com/photowey/keepass/cmd/cmder/root"
 )
 
+// $ go install github.com/go-delve/delve/cmd/dlv@v1.20.0
+
 func main() {
+	// $ keepass add -n photowey -a github -u photowey@github.com -p hello.github -i https://github.com -t "the username and password of github.com website"
+	// $ keepass add photowey -a github -u photowey@github.com -p hello.github -i https://github.com -t "the username and password of github.com website"
+	// $ keepass add < testdata.json
 	App.Run()
 }

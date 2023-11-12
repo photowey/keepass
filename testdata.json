@@ -1,0 +1,12 @@
+{
+  "namespace": "photowey",
+  "nodes": [
+    {
+      "alias": "github",
+      "username": "photowey@github.com",
+      "password": "hello.github",
+      "uri": "https://github.com",
+      "note": "the username and password of github.com website"
+    }
+  ]
+}

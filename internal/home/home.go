@@ -14,13 +14,31 @@
  * limitations under the License.
  */
 
-package version
+package home
 
-const (
-	versionNow         = "1.0.0"
-	fixedVersionPrefix = "v"
+import (
+	"os"
+	"os/user"
+	"path/filepath"
+
+	"github.com/photowey/keepass/pkg/filez"
 )
 
-func Now() string {
-	return fixedVersionPrefix + versionNow
+const (
+	KeepassConfig = "keepass.json"
+)
+
+var (
+	Home   = ".keepass"
+	Usr, _ = user.Current()
+	Dir    = filepath.Join(Usr.HomeDir, string(os.PathSeparator), Home)
+)
+
+func KeepassHome() {
+	keepassHome := Dir
+	if ok := filez.DirExists(keepassHome); !ok {
+		if err := os.MkdirAll(keepassHome, os.ModePerm); err != nil {
+			// panic(fmt.Sprintf("mkdir keepass home dir:%s error:%v", keepassHome, err))
+		}
+	}
 }

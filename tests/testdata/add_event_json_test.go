@@ -14,13 +14,17 @@
  * limitations under the License.
  */
 
-package version
+package testdata
 
-const (
-	versionNow         = "1.0.0"
-	fixedVersionPrefix = "v"
-)
-
-func Now() string {
-	return fixedVersionPrefix + versionNow
-}
+var TestData = `{
+  "namespace": "photowey",
+  "nodes": [
+    {
+      "alias": "github",
+      "username": "photowey@github.com",
+      "password": "hello.github",
+      "uri": "https://github.com",
+      "note": "the username and password of github.com website"
+    }
+  ]
+}`

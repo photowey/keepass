@@ -14,13 +14,31 @@
  * limitations under the License.
  */
 
-package version
+package echo
 
-const (
-	versionNow         = "1.0.0"
-	fixedVersionPrefix = "v"
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
 )
 
-func Now() string {
-	return fixedVersionPrefix + versionNow
+// Cmd `keepass echo` cmd
+//
+// echo the password nodes information of $username
+//
+// pattern: $ keepass echo $username
+//
+// e.g.:
+//
+// $ keepass echo photowey
+var Cmd = &cobra.Command{
+	Use:   "echo",
+	Short: "Echo keepass password node information",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Printf("hello keepass echo~")
+	},
+}
+
+func init() {
+
 }

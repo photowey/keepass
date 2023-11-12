@@ -14,13 +14,17 @@
  * limitations under the License.
  */
 
-package version
+package types
 
-const (
-	versionNow         = "1.0.0"
-	fixedVersionPrefix = "v"
-)
+type AddEvent struct {
+	Namespace string
+	Nodes     []*Node
+}
 
-func Now() string {
-	return fixedVersionPrefix + versionNow
+type Node struct {
+	Alias    string
+	Username string
+	Password string
+	Uri      string
+	Note     string
 }

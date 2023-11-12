@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
-package version
+package action
 
-const (
-	versionNow         = "1.0.0"
-	fixedVersionPrefix = "v"
+import (
+	"fmt"
+
+	"github.com/photowey/keepass/internal/types"
 )
 
-func Now() string {
-	return fixedVersionPrefix + versionNow
+func OnAddEvent(event *types.AddEvent) {
+	fmt.Printf("%+v\n", event)
 }
