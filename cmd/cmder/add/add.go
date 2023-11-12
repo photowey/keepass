@@ -17,10 +17,17 @@
 package add
 
 import (
+	"fmt"
+	"io"
+	"os"
+
 	"github.com/photowey/keepass/internal/action"
 	"github.com/photowey/keepass/internal/types"
+	"github.com/photowey/keepass/pkg/jsonz"
 	"github.com/photowey/keepass/pkg/stringz"
 	"github.com/spf13/cobra"
+
+	"golang.org/x/crypto/ssh/terminal"
 )
 
 // Cmd `keepass add` cmd
@@ -78,6 +85,26 @@ var Cmd = &cobra.Command{
 	Use:   "add",
 	Short: "Add keepass password node",
 	Run: func(cmd *cobra.Command, args []string) {
+		// try stdin parse
+		if determineIsNotTerminal() {
+			in, err := io.ReadAll(os.Stdin)
+			if err != nil {
+				panic(fmt.Errorf("parse stdin contents error:%s", err.Error()))
+			}
+
+			json := string(in)
+
+			if stringz.IsBlankString(json) {
+				panic(fmt.Errorf("json file content can't be blank"))
+			}
+
+			event := &types.AddEvent{}
+			jsonz.UnmarshalStruct([]byte(json), event)
+			action.OnAddEvent(event)
+
+			return
+		}
+
 		ns := namespace
 		if stringz.IsBlankString(ns) {
 			if len(args) > 0 {
@@ -119,4 +146,12 @@ func init() {
 	Cmd.PersistentFlags().StringVarP(&password, "password", "p", "", "password")
 	Cmd.PersistentFlags().StringVarP(&uri, "uri", "i", "", "uri")
 	Cmd.PersistentFlags().StringVarP(&note, "note", "t", "", "the note of password node(`pn`)")
+}
+
+func determineIsTerminal() bool {
+	return terminal.IsTerminal(0)
+}
+
+func determineIsNotTerminal() bool {
+	return !determineIsTerminal()
 }
