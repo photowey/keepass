@@ -17,28 +17,49 @@
 package home
 
 import (
+	"bytes"
+	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
+	"strings"
 
 	"github.com/photowey/keepass/pkg/filez"
 )
 
 const (
-	KeepassConfig = "keepass.json"
+	Home            = ".keepass"
+	KeepassConfig   = "keepass.json"
+	KeepassDatabase = "database"
 )
 
 var (
-	Home   = ".keepass"
-	Usr, _ = user.Current()
-	Dir    = filepath.Join(Usr.HomeDir, string(os.PathSeparator), Home)
+	Usr, _   = user.Current()
+	Dir      = filepath.Join(Usr.HomeDir, string(os.PathSeparator), Home)
+	Database = filepath.Join(Dir, string(os.PathSeparator), KeepassDatabase)
 )
 
 func KeepassHome() {
 	keepassHome := Dir
+	keepassDatabase := Database
+
 	if ok := filez.DirExists(keepassHome); !ok {
 		if err := os.MkdirAll(keepassHome, os.ModePerm); err != nil {
-			// panic(fmt.Sprintf("mkdir keepass home dir:%s error:%v", keepassHome, err))
+			panic(fmt.Sprintf("mkdir keepass home dir:%s error:%v", keepassHome, err))
+		}
+	}
+
+	if ok := filez.DirExists(keepassDatabase); !ok {
+		if err := os.MkdirAll(keepassDatabase, os.ModePerm); err != nil {
+			panic(fmt.Sprintf("mkdir keepass database home dir:%s error:%v", keepassDatabase, err))
+		}
+	}
+
+	if filez.FileNotExists(keepassHome, KeepassConfig) {
+		buf := bytes.NewBufferString(keepassConfigData)
+		keepassConfigFile := filepath.Join(keepassHome, strings.ToLower(KeepassConfig))
+		if err := os.WriteFile(keepassConfigFile, buf.Bytes(), 0o644); err != nil {
+			panic(fmt.Sprintf("writing file %s: %v", keepassConfigFile, err))
 		}
 	}
 }

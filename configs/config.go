@@ -33,6 +33,7 @@ type Project struct {
 	Author  string `toml:"author" json:"author" yaml:"author"`
 	Email   string `toml:"email" json:"email"`
 	Version string `toml:"version" json:"version" yaml:"version"`
+	Status  string `toml:"status" json:"status" yaml:"status"`
 }
 
 type Database struct {
