@@ -17,6 +17,7 @@
 package add
 
 import (
+	"flag"
 	"fmt"
 	"io"
 	"os"
@@ -86,7 +87,9 @@ var Cmd = &cobra.Command{
 	Short: "Add keepass password node",
 	Run: func(cmd *cobra.Command, args []string) {
 		// try stdin parse
-		if determineIsNotTerminal() {
+		flag.Parse()
+		arguments := flag.Args()
+		if determineIsStdinModel(arguments) && determineIsNotTerminal() {
 			in, err := io.ReadAll(os.Stdin)
 			if err != nil {
 				panic(fmt.Errorf("parse stdin contents error:%s", err.Error()))
@@ -154,4 +157,9 @@ func determineIsTerminal() bool {
 
 func determineIsNotTerminal() bool {
 	return !determineIsTerminal()
+}
+
+func determineIsStdinModel(args []string) bool {
+	// [add]
+	return len(args) == 1
 }
