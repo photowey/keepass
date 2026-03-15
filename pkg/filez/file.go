@@ -17,43 +17,63 @@
 package filez
 
 import (
+	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 )
 
-func exists(names ...string) bool {
-	_, err := os.Stat(filepath.Join(names...))
-
-	return err == nil || os.IsExist(err)
+func Exists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
-func DirExists(path string) bool {
-	return exists(path)
-}
-
-func FileExists(target, name string) bool {
-	return exists(target, name)
-}
-
-func FileNotExists(target, name string) bool {
-	return !FileExists(target, name)
-}
-
-func Write(filename, content string) {
-	f, err := os.Create(filename)
-	MustCheck(err)
-	defer Close(f)
-	_, err = f.WriteString(content)
-	MustCheck(err)
-}
-
-func Close(f *os.File) {
-	err := f.Close()
-	MustCheck(err)
-}
-
-func MustCheck(err error) {
-	if err != nil {
-		panic(err)
+func EnsureDir(path string, perm fs.FileMode) error {
+	if err := os.MkdirAll(path, perm); err != nil {
+		return err
 	}
+
+	return os.Chmod(path, perm)
+}
+
+func WriteFileAtomic(filename string, data []byte, perm fs.FileMode) error {
+	dir := filepath.Dir(filename)
+	if err := EnsureDir(dir, 0o700); err != nil {
+		return err
+	}
+
+	tmp, err := os.CreateTemp(dir, ".keepass-*")
+	if err != nil {
+		return fmt.Errorf("create temp file: %w", err)
+	}
+
+	tmpName := tmp.Name()
+	defer func() {
+		_ = os.Remove(tmpName)
+	}()
+
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("write temp file: %w", err)
+	}
+
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("sync temp file: %w", err)
+	}
+
+	if err := tmp.Chmod(perm); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("chmod temp file: %w", err)
+	}
+
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("close temp file: %w", err)
+	}
+
+	if err := os.Rename(tmpName, filename); err != nil {
+		return fmt.Errorf("rename temp file: %w", err)
+	}
+
+	return os.Chmod(filename, perm)
 }

@@ -17,32 +17,35 @@
 package config
 
 import (
-	"fmt"
+	"errors"
 
+	"github.com/photowey/keepass/cmd/cmder/common"
+	"github.com/photowey/keepass/configs"
+	"github.com/photowey/keepass/internal/home"
 	"github.com/spf13/cobra"
 )
 
-// Cmd `keepass config` cmd
-//
-// update an exits password node of $username with alias,
-// and the alias must be unique under the username $username.
-//
-// pattern: $ keepass config -a $alias -u $username -p $password ...
-//
-// e.g.:
-//
-// $ keepass config photowey -a github -u photowey@github.com -p hello.github
-//
-// update a password node (-u photowey@github.com -p hello.github)
-// with the username photowey@github.com and password hello.github under the namespace of username photowey, using the alias github.
-var Cmd = &cobra.Command{
-	Use:   "config",
-	Short: "Config keepass password node",
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("hello keepass config~")
-	},
-}
+func New() *cobra.Command {
+	return &cobra.Command{
+		Use:   "config",
+		Short: "Show effective configuration and resolved paths",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			env, err := home.Detect()
+			if err != nil {
+				return err
+			}
 
-func init() {
+			cfg, err := configs.Load(env)
+			initialized := true
+			if err != nil {
+				if !errors.Is(err, configs.ErrConfigNotFound) {
+					return err
+				}
+				initialized = false
+				cfg = configs.Default(env)
+			}
 
+			return common.PrintConfig(cmd.OutOrStdout(), env, cfg, initialized)
+		},
+	}
 }

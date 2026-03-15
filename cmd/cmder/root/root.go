@@ -22,30 +22,45 @@ import (
 
 	"github.com/photowey/keepass/cmd/cmder/add"
 	"github.com/photowey/keepass/cmd/cmder/config"
-	"github.com/photowey/keepass/cmd/cmder/echo"
+	"github.com/photowey/keepass/cmd/cmder/del"
+	"github.com/photowey/keepass/cmd/cmder/get"
+	"github.com/photowey/keepass/cmd/cmder/initcmd"
+	"github.com/photowey/keepass/cmd/cmder/list"
+	"github.com/photowey/keepass/cmd/cmder/update"
 	"github.com/spf13/cobra"
 
 	"github.com/photowey/keepass/internal/version"
 )
 
-var root = &cobra.Command{
-	Use:     "keepass",
-	Short:   "Password manager",
-	Long:    "A cmd password manager implemented in Go.",
-	Version: version.Now(),
-	Aliases: []string{"kee", "kps", "keectl"},
-	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("Welcome to keepass cmder %s~", version.Now())
-	},
-}
+func NewCommand() *cobra.Command {
+	root := &cobra.Command{
+		Use:           "keepass",
+		Short:         "Secure local password manager",
+		Long:          "A secure local password manager backed by a versioned encrypted vault.",
+		Version:       version.Now(),
+		Aliases:       []string{"kee", "kps"},
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return cmd.Help()
+		},
+	}
 
-func init() {
-	cobra.OnInitialize(onInit)
-	root.AddCommand(add.Cmd, config.Cmd, echo.Cmd)
+	root.AddCommand(
+		initcmd.New(),
+		add.New(),
+		list.New(),
+		get.New(),
+		update.New(),
+		del.New(),
+		config.New(),
+	)
+
+	return root
 }
 
 func Run() {
-	if err := root.Execute(); err != nil {
+	if err := NewCommand().Execute(); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}

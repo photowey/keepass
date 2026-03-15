@@ -17,149 +17,135 @@
 package add
 
 import (
-	"flag"
 	"fmt"
-	"io"
-	"os"
 
-	"github.com/photowey/keepass/internal/action"
-	"github.com/photowey/keepass/internal/types"
-	"github.com/photowey/keepass/pkg/jsonz"
-	"github.com/photowey/keepass/pkg/stringz"
+	"github.com/photowey/keepass/cmd/cmder/common"
+	"github.com/photowey/keepass/internal/manager"
 	"github.com/spf13/cobra"
-
-	"golang.org/x/crypto/ssh/terminal"
 )
 
-// Cmd `keepass add` cmd
-//
-// Add a password node into the namespace(master username) of $username.
-//
-// Pattern: $ keepass add -n $namespace -a $alias -u $username -p $password ...
-//
-// or
-//
-// Pattern: $ keepass add $namespace -a $alias -u $username -p $password ...
-//
-// e.g.:
-//
-// $ keepass add -n photowey -a github -u photowey@github.com -p hello.github -i https://github.com -t "the username and password of github.com website".
-//
-// or
-//
-// $ keepass add photowey -a github -u photowey@github.com -p hello.github -i https://github.com -t "the username and password of github.com website".
-//
-// or:
-//
-// $ keepass add < testdata.json
-//
-// Json example:
-//
-//	{
-//	 "namespace": "photowey",
-//	 "nodes": [
-//	   {
-//	     "alias": "github",
-//	     "username": "photowey@github.com",
-//	     "password": "hello.github",
-//	     "uri": "https://github.com",
-//	     "note": "the username and password of github.com website"
-//	   }
-//	 ]
-//	}
-//
-// -n: namespace
-//
-// -a: alias: the alias must be unique under the namespace of $username.
-//
-// -p: password
-//
-// -i: uri
-//
-// -t: note
-//
-// -
-//
-// Add a password node (-u photowey@github.com -p hello.github)
-// with the username photowey@github.com and password hello.github under the namespace of username photowey, using the alias github.
-var Cmd = &cobra.Command{
-	Use:   "add",
-	Short: "Add keepass password node",
-	Run: func(cmd *cobra.Command, args []string) {
-		// try stdin parse
-		flag.Parse()
-		arguments := flag.Args()
-		if determineIsStdinModel(arguments) && determineIsNotTerminal() {
-			in, err := io.ReadAll(os.Stdin)
+func New() *cobra.Command {
+	var uri string
+	var note string
+	var tags []string
+	var generate bool
+	var revealGenerated bool
+
+	cmd := &cobra.Command{
+		Use:   "add [alias] [username]",
+		Short: "Add a vault entry",
+		Args:  cobra.RangeArgs(0, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			mgr, err := common.LoadManager()
 			if err != nil {
-				panic(fmt.Errorf("parse stdin contents error:%s", err.Error()))
+				return err
 			}
 
-			json := string(in)
+			prompter := common.NewPrompter(cmd.InOrStdin(), cmd.OutOrStdout())
 
-			if stringz.IsBlankString(json) {
-				panic(fmt.Errorf("json file content can't be blank"))
-			}
-
-			event := &types.AddEvent{}
-			jsonz.UnmarshalStruct([]byte(json), event)
-			action.OnAddEvent(event)
-
-			return
-		}
-
-		ns := namespace
-		if stringz.IsBlankString(ns) {
+			alias := ""
 			if len(args) > 0 {
-				ns = args[0]
+				alias = args[0]
+			} else {
+				alias, err = prompter.Ask("Alias")
+				if err != nil {
+					return err
+				}
 			}
-		}
 
-		if stringz.IsBlankString(ns) {
-			panic("The namespace(master username) parameter cannot be blank. Either of the two commands, " +
-				"`$ keepass add $username` or `$ keepass add -n $username` can be used.")
-		}
+			username := ""
+			if len(args) > 1 {
+				username = args[1]
+			} else {
+				username, err = prompter.Ask("Username")
+				if err != nil {
+					return err
+				}
+			}
 
-		action.OnAddEvent(&types.AddEvent{
-			Namespace: ns,
-			Nodes: []*types.Node{{
-				Alias:    alias,
-				Username: username,
-				Password: password,
-				Uri:      uri,
-				Note:     note,
-			}},
-		})
-	},
-}
+			if uri == "" {
+				uri, err = prompter.AskOptional("URI (optional)")
+				if err != nil {
+					return err
+				}
+			}
 
-var (
-	namespace string
-	alias     string
-	username  string
-	password  string
-	uri       string
-	note      string
-)
+			if note == "" {
+				note, err = prompter.AskOptional("Note (optional)")
+				if err != nil {
+					return err
+				}
+			}
 
-func init() {
-	Cmd.PersistentFlags().StringVarP(&namespace, "namespace", "n", "", "the namespace of local username")
-	Cmd.PersistentFlags().StringVarP(&alias, "alias", "a", "", "the alias of password node")
-	Cmd.PersistentFlags().StringVarP(&username, "username", "u", "", "username")
-	Cmd.PersistentFlags().StringVarP(&password, "password", "p", "", "password")
-	Cmd.PersistentFlags().StringVarP(&uri, "uri", "i", "", "uri")
-	Cmd.PersistentFlags().StringVarP(&note, "note", "t", "", "the note of password node(`pn`)")
-}
+			if len(tags) == 0 {
+				tagLine, err := prompter.AskOptional("Tags (comma-separated, optional)")
+				if err != nil {
+					return err
+				}
+				tags = common.ParseTags(tagLine)
+			}
 
-func determineIsTerminal() bool {
-	return terminal.IsTerminal(0)
-}
+			accountPassword := ""
+			if !generate {
+				accountPassword, err = prompter.AskSecret("Account password (leave blank to generate)")
+				if err != nil {
+					return err
+				}
 
-func determineIsNotTerminal() bool {
-	return !determineIsTerminal()
-}
+				if accountPassword != "" {
+					confirmed, err := prompter.AskSecret("Confirm account password")
+					if err != nil {
+						return err
+					}
 
-func determineIsStdinModel(args []string) bool {
-	// [add]
-	return len(args) == 1
+					if accountPassword != confirmed {
+						return fmt.Errorf("account password does not match confirmation")
+					}
+				}
+			}
+
+			masterPassword, err := common.PromptMasterPassword(prompter)
+			if err != nil {
+				return err
+			}
+
+			entry, generated, err := mgr.Add(masterPassword, manager.AddInput{
+				Alias:            alias,
+				Username:         username,
+				Password:         accountPassword,
+				URI:              uri,
+				Note:             note,
+				Tags:             tags,
+				GeneratePassword: generate,
+			})
+			if err != nil {
+				return err
+			}
+
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Added entry %s\n", entry.Alias)
+			if err != nil {
+				return err
+			}
+
+			if generated {
+				if revealGenerated {
+					_, err = fmt.Fprintf(cmd.OutOrStdout(), "Generated password: %s\n", entry.Password)
+					return err
+				}
+
+				_, err = fmt.Fprintln(cmd.OutOrStdout(), "Password was generated and stored securely. Use `keepass get <alias> --reveal` to view it.")
+				return err
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&uri, "uri", "", "account URI")
+	cmd.Flags().StringVar(&note, "note", "", "account note")
+	cmd.Flags().StringArrayVar(&tags, "tag", nil, "entry tag (repeatable)")
+	cmd.Flags().BoolVar(&generate, "generate", false, "generate the account password")
+	cmd.Flags().BoolVar(&revealGenerated, "reveal-generated", false, "print the generated password once after creation")
+
+	return cmd
 }

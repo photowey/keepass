@@ -17,7 +17,7 @@
 package version
 
 const (
-	versionNow         = "1.0.0"
+	versionNow         = "2.0.0"
 	fixedVersionPrefix = "v"
 )
 
