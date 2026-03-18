@@ -17,9 +17,9 @@
 package main
 
 import (
-	"github.com/photowey/keepass/cmd/cmder/root"
+	App "github.com/photowey/keepass/cmd/cmder/root"
 )
 
 func main() {
-	root.Run()
+	App.Run()
 }

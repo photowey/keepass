@@ -12,10 +12,22 @@
 *.out
 
 # Dependency directories (remove the comment below to include it)
- vendor/
+vendor/
 
+### IDE files ###
 .idea/
-logs/
 
+# local build output
+keepass
+
+### vibe coding files ###
 .codex/
+.claude/
+.cursor/
+CLAUDE.md
+AGENTS.md
+
 openspec/
+
+# local build and module caches
+.cache/

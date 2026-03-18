@@ -26,7 +26,9 @@ import (
 )
 
 func New() *cobra.Command {
-	return &cobra.Command{
+	var jsonOut bool
+
+	cmd := &cobra.Command{
 		Use:   "config",
 		Short: "Show effective configuration and resolved paths",
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -39,13 +41,22 @@ func New() *cobra.Command {
 			initialized := true
 			if err != nil {
 				if !errors.Is(err, configs.ErrConfigNotFound) {
-					return err
+					return common.MapError(err)
 				}
 				initialized = false
 				cfg = configs.Default(env)
 			}
 
-			return common.PrintConfig(cmd.OutOrStdout(), env, cfg, initialized)
+			if jsonOut {
+				return common.PrintConfig(cmd.OutOrStdout(), env, cfg, initialized)
+			}
+
+			// Keep a human-friendly default while still supporting --json for scripting.
+			_, err = common.PrintConfigText(cmd.OutOrStdout(), env, cfg, initialized)
+			return err
 		},
 	}
+
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "output as JSON")
+	return cmd
 }

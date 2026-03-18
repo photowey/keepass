@@ -8,6 +8,7 @@ import (
 
 func New() *cobra.Command {
 	var tags []string
+	var jsonOut bool
 
 	cmd := &cobra.Command{
 		Use:   "list [query]",
@@ -16,7 +17,7 @@ func New() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			mgr, err := common.LoadManager()
 			if err != nil {
-				return err
+				return common.MapError(err)
 			}
 
 			query := ""
@@ -24,7 +25,7 @@ func New() *cobra.Command {
 				query = args[0]
 			}
 
-			prompter := common.NewPrompter(cmd.InOrStdin(), cmd.OutOrStdout())
+			prompter := common.NewPrompter(cmd.InOrStdin(), cmd.ErrOrStderr())
 			masterPassword, err := common.PromptMasterPassword(prompter)
 			if err != nil {
 				return err
@@ -35,7 +36,11 @@ func New() *cobra.Command {
 				Tags:  tags,
 			})
 			if err != nil {
-				return err
+				return common.MapError(err)
+			}
+
+			if jsonOut {
+				return common.PrintEntriesJSON(cmd.OutOrStdout(), entries)
 			}
 
 			common.PrintEntries(cmd.OutOrStdout(), entries)
@@ -44,6 +49,7 @@ func New() *cobra.Command {
 	}
 
 	cmd.Flags().StringArrayVar(&tags, "tag", nil, "filter by tag (repeatable, all tags must match)")
+	cmd.Flags().BoolVar(&jsonOut, "json", false, "output as JSON")
 
 	return cmd
 }

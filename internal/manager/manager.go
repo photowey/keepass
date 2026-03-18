@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"github.com/photowey/keepass/configs"
+	"github.com/photowey/keepass/internal/credentialaudit"
 	"github.com/photowey/keepass/internal/home"
 	"github.com/photowey/keepass/internal/password"
+	"github.com/photowey/keepass/internal/transfer"
 	"github.com/photowey/keepass/internal/vault"
 )
 
@@ -102,6 +104,131 @@ func (m *Manager) VaultExists() bool {
 
 func (m *Manager) Initialize(masterPassword string, force bool) error {
 	return m.store.Initialize(masterPassword, force)
+}
+
+func (m *Manager) Rehash(masterPassword string) (int, error) {
+	document, err := m.store.Load(masterPassword)
+	if err != nil {
+		return 0, err
+	}
+
+	if err := m.store.Save(masterPassword, document); err != nil {
+		return 0, err
+	}
+
+	return len(document.Entries), nil
+}
+
+func (m *Manager) Export(masterPassword string) (transfer.ExportDocument, error) {
+	document, err := m.store.Load(masterPassword)
+	if err != nil {
+		return transfer.ExportDocument{}, err
+	}
+
+	entries := append([]vault.Entry(nil), document.Entries...)
+	sortEntries(entries)
+	return transfer.ExportDocument{
+		Version:    transfer.ExportVersion,
+		ExportedAt: m.now().UTC(),
+		Entries:    entries,
+	}, nil
+}
+
+func (m *Manager) Import(masterPassword string, doc transfer.ExportDocument, strategy string) (transfer.ImportResult, error) {
+	document, err := m.store.Load(masterPassword)
+	if err != nil {
+		return transfer.ImportResult{}, err
+	}
+
+	strategy, err = transfer.NormalizeConflictStrategy(strategy)
+	if err != nil {
+		return transfer.ImportResult{}, err
+	}
+
+	result := transfer.ImportResult{}
+	for _, imported := range doc.Entries {
+		normalizedAlias, err := normalizeAlias(imported.Alias)
+		if err != nil {
+			return transfer.ImportResult{}, err
+		}
+
+		username := strings.TrimSpace(imported.Username)
+		if username == "" {
+			return transfer.ImportResult{}, errors.New("username cannot be blank")
+		}
+
+		if strings.TrimSpace(imported.Password) == "" {
+			return transfer.ImportResult{}, errors.New("password cannot be blank")
+		}
+
+		tags, err := normalizeTags(imported.Tags)
+		if err != nil {
+			return transfer.ImportResult{}, err
+		}
+
+		imported.Alias = normalizedAlias
+		imported.Username = username
+		imported.URI = strings.TrimSpace(imported.URI)
+		imported.Note = strings.TrimSpace(imported.Note)
+		imported.Tags = tags
+
+		index, _, found := findExact(document.Entries, normalizedAlias)
+		if !found {
+			document.Entries = append(document.Entries, imported)
+			result.Added++
+			continue
+		}
+
+		switch strategy {
+		case transfer.ConflictFail:
+			return transfer.ImportResult{}, fmt.Errorf("alias %q already exists", normalizedAlias)
+		case transfer.ConflictSkip:
+			result.Skipped++
+		case transfer.ConflictOverwrite:
+			document.Entries[index] = imported
+			result.Overwrote++
+		}
+	}
+
+	sortEntries(document.Entries)
+	if err := m.store.Save(masterPassword, document); err != nil {
+		return transfer.ImportResult{}, err
+	}
+
+	return result, nil
+}
+
+func (m *Manager) CreateBackup(path string, force bool) (string, error) {
+	return transfer.CreateBackupBundle(path, m.env, m.cfg, force, m.now())
+}
+
+func RestoreCurrent(path string, force bool) error {
+	env, err := home.Detect()
+	if err != nil {
+		return err
+	}
+
+	return transfer.RestoreBackupBundle(path, env, force)
+}
+
+func (m *Manager) AuditCredentials(masterPassword string, maxAgeDays int) (credentialaudit.Report, error) {
+	document, err := m.store.Load(masterPassword)
+	if err != nil {
+		return credentialaudit.Report{}, err
+	}
+
+	entries := append([]vault.Entry(nil), document.Entries...)
+	sortEntries(entries)
+	return credentialaudit.Analyze(entries, maxAgeDays, m.now().UTC()), nil
+}
+
+func (m *Manager) Rotate(masterPassword, alias string, passwordValue *string, generate bool) (vault.Entry, bool, error) {
+	input := UpdateInput{
+		Password:         passwordValue,
+		GeneratePassword: generate,
+	}
+
+	return m.Update(masterPassword, alias, input)
 }
 
 func (m *Manager) Add(masterPassword string, input AddInput) (vault.Entry, bool, error) {
@@ -206,7 +333,12 @@ func (m *Manager) Update(masterPassword, alias string, input UpdateInput) (vault
 	}
 
 	if input.GeneratePassword {
-		entry.Password, err = password.Generate(m.cfg.PasswordGenerator.DefaultLength, m.cfg.PasswordGenerator.Alphabet)
+		alphabet, err := m.cfg.PasswordGenerator.EffectiveAlphabet()
+		if err != nil {
+			return vault.Entry{}, false, err
+		}
+
+		entry.Password, err = password.Generate(m.cfg.PasswordGenerator.DefaultLength, alphabet)
 		if err != nil {
 			return vault.Entry{}, false, err
 		}
@@ -269,7 +401,12 @@ func (m *Manager) newEntry(input AddInput) (vault.Entry, bool, error) {
 	accountPassword := input.Password
 	generated := false
 	if input.GeneratePassword || strings.TrimSpace(accountPassword) == "" {
-		accountPassword, err = password.Generate(m.cfg.PasswordGenerator.DefaultLength, m.cfg.PasswordGenerator.Alphabet)
+		alphabet, err := m.cfg.PasswordGenerator.EffectiveAlphabet()
+		if err != nil {
+			return vault.Entry{}, false, err
+		}
+
+		accountPassword, err = password.Generate(m.cfg.PasswordGenerator.DefaultLength, alphabet)
 		if err != nil {
 			return vault.Entry{}, false, err
 		}

@@ -5,8 +5,24 @@ import (
 	"testing"
 )
 
+func TestAlphabetForPreset(t *testing.T) {
+	alphabet, err := AlphabetForPreset(PresetSymbols)
+	if err != nil {
+		t.Fatalf("AlphabetForPreset() error = %v", err)
+	}
+
+	if !strings.ContainsRune(alphabet, '!') || !strings.ContainsRune(alphabet, '+') {
+		t.Fatalf("expected symbols preset to include special symbols, got %q", alphabet)
+	}
+
+	if _, err := AlphabetForPreset("unknown"); err == nil {
+		t.Fatal("expected error for unsupported preset")
+	}
+}
+
 func TestGenerateUsesRequestedAlphabetAndLength(t *testing.T) {
-	value, err := Generate(32, "abc123")
+	alphabet := "abC123!@#-_"
+	value, err := Generate(32, alphabet)
 	if err != nil {
 		t.Fatalf("Generate() error = %v", err)
 	}
@@ -16,7 +32,7 @@ func TestGenerateUsesRequestedAlphabetAndLength(t *testing.T) {
 	}
 
 	for _, r := range value {
-		if !strings.ContainsRune("abc123", r) {
+		if !strings.ContainsRune(alphabet, r) {
 			t.Fatalf("generated rune %q not found in alphabet", r)
 		}
 	}

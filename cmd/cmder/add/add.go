@@ -38,15 +38,20 @@ func New() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			mgr, err := common.LoadManager()
 			if err != nil {
-				return err
+				return common.MapError(err)
 			}
 
-			prompter := common.NewPrompter(cmd.InOrStdin(), cmd.OutOrStdout())
+			in := cmd.InOrStdin()
+			prompter := common.NewPrompter(in, cmd.ErrOrStderr())
+			interactive := common.IsInteractive(in) && !common.IsNonInteractive(cmd)
 
 			alias := ""
 			if len(args) > 0 {
 				alias = args[0]
 			} else {
+				if !interactive {
+					return fmt.Errorf("alias is required in non-interactive mode (provide it as the first argument: `keepass add <alias> <username>`)")
+				}
 				alias, err = prompter.Ask("Alias")
 				if err != nil {
 					return err
@@ -57,6 +62,9 @@ func New() *cobra.Command {
 			if len(args) > 1 {
 				username = args[1]
 			} else {
+				if !interactive {
+					return fmt.Errorf("username is required in non-interactive mode (provide it as the second argument: `keepass add <alias> <username>`)")
+				}
 				username, err = prompter.Ask("Username")
 				if err != nil {
 					return err
@@ -64,42 +72,50 @@ func New() *cobra.Command {
 			}
 
 			if uri == "" {
-				uri, err = prompter.AskOptional("URI (optional)")
-				if err != nil {
-					return err
+				if interactive {
+					uri, err = prompter.AskOptional("URI (optional)")
+					if err != nil {
+						return err
+					}
 				}
 			}
 
 			if note == "" {
-				note, err = prompter.AskOptional("Note (optional)")
-				if err != nil {
-					return err
+				if interactive {
+					note, err = prompter.AskOptional("Note (optional)")
+					if err != nil {
+						return err
+					}
 				}
 			}
 
 			if len(tags) == 0 {
-				tagLine, err := prompter.AskOptional("Tags (comma-separated, optional)")
-				if err != nil {
-					return err
+				if interactive {
+					tagLine, err := prompter.AskOptional("Tags (comma-separated, optional)")
+					if err != nil {
+						return err
+					}
+					tags = common.ParseTags(tagLine)
 				}
-				tags = common.ParseTags(tagLine)
 			}
 
 			accountPassword := ""
 			if !generate {
-				accountPassword, err = prompter.AskSecret("Account password (leave blank to generate)")
-				if err != nil {
-					return err
-				}
-
-				if accountPassword != "" {
-					confirmed, err := prompter.AskSecret("Confirm account password")
+				if interactive {
+					accountPassword, err = prompter.AskSecret("Account password (leave blank to generate)")
 					if err != nil {
 						return err
 					}
 
-					if accountPassword != confirmed {
-						return fmt.Errorf("account password does not match confirmation")
+					if accountPassword != "" {
+						confirmed, err := prompter.AskSecret("Confirm account password")
+						if err != nil {
+							return err
+						}
+
+						if accountPassword != confirmed {
+							return fmt.Errorf("account password does not match confirmation")
+						}
 					}
 				}
 			}
@@ -119,7 +135,7 @@ func New() *cobra.Command {
 				GeneratePassword: generate,
 			})
 			if err != nil {
-				return err
+				return common.MapError(err)
 			}
 
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Added entry %s\n", entry.Alias)

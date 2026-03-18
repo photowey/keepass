@@ -36,8 +36,8 @@ func TestStoreRoundTripAndPermissions(t *testing.T) {
 
 	document.Entries = append(document.Entries, Entry{
 		Alias:    "github",
-		Username: "abc",
-		Password: "s3cret",
+		Username: "hellopass",
+		Password: "github-secret-2024",
 		Tags:     []string{"code"},
 	})
 
@@ -71,6 +71,44 @@ func TestStoreRejectsWrongPassword(t *testing.T) {
 
 	if _, err := store.Load("wrong password"); !errors.Is(err, ErrDecryptFailed) {
 		t.Fatalf("expected ErrDecryptFailed, got %v", err)
+	}
+}
+
+func TestStoreLoadRejectsMissingVault(t *testing.T) {
+	env := testutil.NewEnvironment(t)
+	cfg := testutil.TestConfig(env)
+	store := NewStore(cfg.ResolveVaultPath(env), cfg)
+
+	if _, err := store.Load("master"); !errors.Is(err, ErrVaultNotInitialized) {
+		t.Fatalf("expected ErrVaultNotInitialized, got %v", err)
+	}
+}
+
+func TestStoreInitializeRejectsBlankMasterAndExistingVault(t *testing.T) {
+	env := testutil.NewEnvironment(t)
+	cfg := testutil.TestConfig(env)
+	store := NewStore(cfg.ResolveVaultPath(env), cfg)
+
+	if err := store.Initialize("", false); err == nil {
+		t.Fatal("expected blank master password error")
+	}
+
+	if err := store.Initialize("master", false); err != nil {
+		t.Fatalf("Initialize() error = %v", err)
+	}
+
+	if err := store.Initialize("master", false); err == nil {
+		t.Fatal("expected existing vault error")
+	}
+}
+
+func TestStoreSaveRejectsNilDocument(t *testing.T) {
+	env := testutil.NewEnvironment(t)
+	cfg := testutil.TestConfig(env)
+	store := NewStore(cfg.ResolveVaultPath(env), cfg)
+
+	if err := store.Save("master", nil); err == nil {
+		t.Fatal("expected nil document error")
 	}
 }
 
@@ -136,5 +174,30 @@ func TestDecodeRejectsInvalidHeaderParameters(t *testing.T) {
 
 	if _, err := Decode(mutated, masterPassword); err == nil {
 		t.Fatal("expected invalid file error after header mutation")
+	}
+}
+
+func TestEncodeRejectsUnsupportedVersionAndBlankMaster(t *testing.T) {
+	env := testutil.NewEnvironment(t)
+	cfg := testutil.TestConfig(env)
+
+	if _, err := Encode(99, []byte("hello"), "master", cfg); !errors.Is(err, ErrUnsupportedVersion) {
+		t.Fatalf("expected ErrUnsupportedVersion, got %v", err)
+	}
+
+	if _, err := Encode(1, []byte("hello"), "", cfg); err == nil {
+		t.Fatal("expected blank master password error")
+	}
+}
+
+func TestDecodeRejectsInvalidFileHeaders(t *testing.T) {
+	if _, err := Decode([]byte("bad"), "master"); !errors.Is(err, ErrInvalidFile) {
+		t.Fatalf("expected ErrInvalidFile for short input, got %v", err)
+	}
+
+	data := make([]byte, 10)
+	copy(data[:4], []byte("BAD!"))
+	if _, err := Decode(data, "master"); !errors.Is(err, ErrInvalidFile) {
+		t.Fatalf("expected ErrInvalidFile for bad magic, got %v", err)
 	}
 }

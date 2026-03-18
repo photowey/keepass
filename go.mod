@@ -3,6 +3,7 @@ module github.com/photowey/keepass
 go 1.24
 
 require (
+	github.com/atotto/clipboard v0.1.4
 	github.com/spf13/cobra v1.8.0
 	golang.org/x/crypto v0.15.0
 	golang.org/x/term v0.14.0

@@ -12,8 +12,11 @@ func New() *cobra.Command {
 	var username string
 	var uri string
 	var note string
+	var passwordValue string
 	var tags []string
 	var clearTags bool
+	var clearURI bool
+	var clearNote bool
 	var generate bool
 
 	cmd := &cobra.Command{
@@ -21,12 +24,26 @@ func New() *cobra.Command {
 		Short: "Update an existing entry",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			mgr, err := common.LoadManager()
-			if err != nil {
-				return err
+			if clearURI && uri != "" {
+				return common.UsageError("cannot use --uri and --clear-uri together")
 			}
 
-			prompter := common.NewPrompter(cmd.InOrStdin(), cmd.OutOrStdout())
+			if clearNote && note != "" {
+				return common.UsageError("cannot use --note and --clear-note together")
+			}
+
+			if generate && passwordValue != "" {
+				return common.UsageError("cannot use --generate and --password together")
+			}
+
+			mgr, err := common.LoadManager()
+			if err != nil {
+				return common.MapError(err)
+			}
+
+			in := cmd.InOrStdin()
+			prompter := common.NewPrompter(in, cmd.ErrOrStderr())
+			interactive := common.IsInteractive(in) && !common.IsNonInteractive(cmd)
 			masterPassword, err := common.PromptMasterPassword(prompter)
 			if err != nil {
 				return err
@@ -34,12 +51,12 @@ func New() *cobra.Command {
 
 			current, err := mgr.Get(masterPassword, args[0])
 			if err != nil {
-				return err
+				return common.MapError(err)
 			}
 
 			var input manager.UpdateInput
 
-			if username == "" {
+			if username == "" && interactive {
 				updated, err := prompter.AskDefault("Username", current.Username)
 				if err != nil {
 					return err
@@ -52,7 +69,10 @@ func New() *cobra.Command {
 				input.Username = &username
 			}
 
-			if uri == "" {
+			if clearURI {
+				uri = ""
+				input.URI = &uri
+			} else if uri == "" && interactive {
 				updated, err := prompter.AskDefault("URI", current.URI)
 				if err != nil {
 					return err
@@ -61,11 +81,14 @@ func New() *cobra.Command {
 					uri = updated
 				}
 			}
-			if uri != "" {
+			if !clearURI && uri != "" {
 				input.URI = &uri
 			}
 
-			if note == "" {
+			if clearNote {
+				note = ""
+				input.Note = &note
+			} else if note == "" && interactive {
 				updated, err := prompter.AskDefault("Note", current.Note)
 				if err != nil {
 					return err
@@ -74,11 +97,11 @@ func New() *cobra.Command {
 					note = updated
 				}
 			}
-			if note != "" {
+			if !clearNote && note != "" {
 				input.Note = &note
 			}
 
-			if len(tags) == 0 && !clearTags {
+			if len(tags) == 0 && !clearTags && interactive {
 				tagLine, err := prompter.AskDefault("Tags (comma-separated)", joinTags(current.Tags))
 				if err != nil {
 					return err
@@ -95,7 +118,9 @@ func New() *cobra.Command {
 				input.Tags = &tags
 			}
 
-			if !generate {
+			if passwordValue != "" {
+				input.Password = &passwordValue
+			} else if !generate && interactive {
 				changePassword, err := prompter.AskOptional("Password action (leave blank to keep, type `manual` to replace, type `generate` to generate)")
 				if err != nil {
 					return err
@@ -118,9 +143,13 @@ func New() *cobra.Command {
 
 			input.GeneratePassword = generate
 
+			if !interactive && !hasUpdateIntent(input) {
+				return common.UsageError("update requires at least one mutation flag in non-interactive mode")
+			}
+
 			entry, generated, err := mgr.Update(masterPassword, args[0], input)
 			if err != nil {
-				return err
+				return common.MapError(err)
 			}
 
 			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Updated entry %s\n", entry.Alias)
@@ -140,11 +169,23 @@ func New() *cobra.Command {
 	cmd.Flags().StringVar(&username, "username", "", "new username")
 	cmd.Flags().StringVar(&uri, "uri", "", "new URI")
 	cmd.Flags().StringVar(&note, "note", "", "new note")
+	cmd.Flags().StringVar(&passwordValue, "password", "", "new account password")
 	cmd.Flags().StringArrayVar(&tags, "tag", nil, "replace tags with the provided list")
 	cmd.Flags().BoolVar(&clearTags, "clear-tags", false, "clear all tags")
+	cmd.Flags().BoolVar(&clearURI, "clear-uri", false, "clear the URI")
+	cmd.Flags().BoolVar(&clearNote, "clear-note", false, "clear the note")
 	cmd.Flags().BoolVar(&generate, "generate", false, "generate a new password")
 
 	return cmd
+}
+
+func hasUpdateIntent(input manager.UpdateInput) bool {
+	return input.Username != nil ||
+		input.Password != nil ||
+		input.URI != nil ||
+		input.Note != nil ||
+		input.Tags != nil ||
+		input.GeneratePassword
 }
 
 func joinTags(tags []string) string {

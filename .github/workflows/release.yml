@@ -1,0 +1,127 @@
+name: Cross-platform Release (Go)
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  attestations: write
+  id-token: write
+  artifact-metadata: write
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  GOFLAGS: -trimpath
+
+jobs:
+  build:
+    name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            ext: ""
+            archive: tar.gz
+          - goos: linux
+            goarch: arm64
+            ext: ""
+            archive: tar.gz
+
+          - goos: darwin
+            goarch: amd64
+            ext: ""
+            archive: tar.gz
+          - goos: darwin
+            goarch: arm64
+            ext: ""
+            archive: tar.gz
+
+          - goos: windows
+            goarch: amd64
+            ext: ".exe"
+            archive: zip
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build and package artifact
+        id: package
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          set -euo pipefail
+          build_time="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          name="keepass-${GITHUB_REF_NAME}-${{ matrix.goos }}-${{ matrix.goarch }}"
+          bin="keepass${{ matrix.ext }}"
+
+          make build BINARY="$bin" GOOS="$GOOS" GOARCH="$GOARCH" CGO_ENABLED="$CGO_ENABLED" VERSION="${GITHUB_REF_NAME}" COMMIT="${GITHUB_SHA}" BUILD_TIME="${build_time}"
+
+          if [ "${{ matrix.archive }}" = "zip" ]; then
+            zip -q "${name}.zip" "$bin"
+            echo "artifact=${name}.zip" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          tar czf "${name}.tar.gz" "$bin"
+          echo "artifact=${name}.tar.gz" >> "$GITHUB_OUTPUT"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: keepass-${{ github.ref_name }}-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: ${{ steps.package.outputs.artifact }}
+
+  publish:
+    name: Publish GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Generate SHA256SUMS
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd ./artifacts
+          find . -type f \( -name "*.tar.gz" -o -name "*.zip" \) -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS.txt
+
+      - name: Attest release artifacts
+        id: attest_release
+        uses: actions/attest@v4
+        with:
+          subject-checksums: ./artifacts/SHA256SUMS.txt
+
+      - name: Upload attestation bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: keepass-${{ github.ref_name }}-attestation
+          path: ${{ steps.attest_release.outputs.bundle-path }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            ./artifacts/**/*.tar.gz
+            ./artifacts/**/*.zip
+            ./artifacts/SHA256SUMS.txt

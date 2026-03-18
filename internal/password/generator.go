@@ -8,6 +8,18 @@ import (
 	"strings"
 )
 
+const (
+	PresetCompatible        = "compatible"
+	PresetSymbols           = "symbols"
+	PresetStrictHighEntropy = "strict-high-entropy"
+)
+
+var presetAlphabets = map[string]string{
+	PresetCompatible:        "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789-_",
+	PresetSymbols:           "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789-_!@#$%^&*+=",
+	PresetStrictHighEntropy: "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()-_=+[]{}:,.?",
+}
+
 func Generate(length int, alphabet string) (string, error) {
 	if length <= 0 {
 		return "", errors.New("password length must be positive")
@@ -32,4 +44,18 @@ func Generate(length int, alphabet string) (string, error) {
 	}
 
 	return builder.String(), nil
+}
+
+func AlphabetForPreset(preset string) (string, error) {
+	normalized := strings.TrimSpace(strings.ToLower(preset))
+	if normalized == "" {
+		return "", errors.New("preset cannot be blank")
+	}
+
+	alphabet, ok := presetAlphabets[normalized]
+	if !ok {
+		return "", fmt.Errorf("unsupported password preset %q", preset)
+	}
+
+	return alphabet, nil
 }

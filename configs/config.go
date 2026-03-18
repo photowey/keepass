@@ -25,7 +25,8 @@ import (
 	"strings"
 
 	"github.com/photowey/keepass/internal/home"
-	"github.com/photowey/keepass/pkg/filez"
+	"github.com/photowey/keepass/internal/password"
+	"github.com/photowey/keepass/pkg/files"
 )
 
 const CurrentVersion = 1
@@ -57,7 +58,8 @@ type Argon2idConfig struct {
 
 type PasswordGenerator struct {
 	DefaultLength int    `json:"default_length"`
-	Alphabet      string `json:"alphabet"`
+	Preset        string `json:"preset,omitempty"`
+	Alphabet      string `json:"alphabet,omitempty"`
 }
 
 func Default(env home.Environment) Config {
@@ -75,14 +77,14 @@ func Default(env home.Environment) Config {
 		Security: SecurityConfig{
 			Argon2id: Argon2idConfig{
 				Time:      3,
-				MemoryKiB: 64 * 1024,
+				MemoryKiB: 256 * 1024,
 				Threads:   4,
 				KeyLength: 32,
 			},
 		},
 		PasswordGenerator: PasswordGenerator{
 			DefaultLength: 21,
-			Alphabet:      "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789-_",
+			Preset:        password.PresetCompatible,
 		},
 	}
 }
@@ -132,7 +134,7 @@ func Save(env home.Environment, cfg Config) error {
 		return err
 	}
 
-	if err := filez.EnsureDir(env.RootDir, 0o700); err != nil {
+	if err := files.EnsureDir(env.RootDir, 0o700); err != nil {
 		return fmt.Errorf("ensure keepass home: %w", err)
 	}
 
@@ -141,7 +143,7 @@ func Save(env home.Environment, cfg Config) error {
 		return fmt.Errorf("encode config: %w", err)
 	}
 
-	if err := filez.WriteFileAtomic(env.ConfigFile, append(data, '\n'), 0o600); err != nil {
+	if err := files.WriteFileAtomic(env.ConfigFile, append(data, '\n'), 0o600); err != nil {
 		return fmt.Errorf("write config: %w", err)
 	}
 
@@ -181,8 +183,8 @@ func (c Config) Validate() error {
 		return errors.New("password_generator.default_length must be positive")
 	}
 
-	if strings.TrimSpace(c.PasswordGenerator.Alphabet) == "" {
-		return errors.New("password_generator.alphabet cannot be blank")
+	if _, err := c.PasswordGenerator.EffectiveAlphabet(); err != nil {
+		return err
 	}
 
 	return nil
@@ -194,4 +196,22 @@ func (c Config) ResolveVaultPath(env home.Environment) string {
 	}
 
 	return filepath.Clean(c.Vault.Path)
+}
+
+func (p PasswordGenerator) EffectiveAlphabet() (string, error) {
+	if alphabet := strings.TrimSpace(p.Alphabet); alphabet != "" {
+		return alphabet, nil
+	}
+
+	preset := strings.TrimSpace(p.Preset)
+	if preset == "" {
+		preset = password.PresetCompatible
+	}
+
+	alphabet, err := password.AlphabetForPreset(preset)
+	if err != nil {
+		return "", fmt.Errorf("password_generator.preset: %w", err)
+	}
+
+	return alphabet, nil
 }

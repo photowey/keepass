@@ -25,7 +25,7 @@ import (
 const (
 	RootDirName        = ".keepass"
 	ConfigFileName     = "keepass.config.json"
-	DefaultVaultName   = "default.kp"
+	DefaultVaultName   = "keepass.kp"
 	EnvKeepassHomePath = "KEEPASS_HOME"
 )
 

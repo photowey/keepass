@@ -16,11 +16,48 @@
 
 package version
 
-const (
-	versionNow         = "2.0.0"
-	fixedVersionPrefix = "v"
+import (
+	"fmt"
+	"strings"
+)
+
+var (
+	version   = "dev"
+	commit    = "unknown"
+	buildTime = "unknown"
 )
 
 func Now() string {
-	return fixedVersionPrefix + versionNow
+	value := strings.TrimSpace(version)
+	switch {
+	case value == "", value == "unknown":
+		return "dev"
+	case value == "dev":
+		return value
+	case strings.HasPrefix(value, "v"):
+		return value
+	default:
+		return "v" + value
+	}
+}
+
+func Commit() string {
+	return normalizeValue(commit, "unknown")
+}
+
+func BuildTime() string {
+	return normalizeValue(buildTime, "unknown")
+}
+
+func Summary() string {
+	return fmt.Sprintf("%s (commit %s, built %s)", Now(), Commit(), BuildTime())
+}
+
+func normalizeValue(value, fallback string) string {
+	normalized := strings.TrimSpace(value)
+	if normalized == "" {
+		return fallback
+	}
+
+	return normalized
 }

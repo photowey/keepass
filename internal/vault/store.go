@@ -9,8 +9,10 @@ import (
 	"time"
 
 	"github.com/photowey/keepass/configs"
-	"github.com/photowey/keepass/pkg/filez"
+	"github.com/photowey/keepass/pkg/files"
 )
+
+var ErrVaultNotInitialized = errors.New("vault not initialized, run `keepass init` first")
 
 type Store struct {
 	path string
@@ -31,7 +33,7 @@ func (s *Store) Path() string {
 }
 
 func (s *Store) Exists() bool {
-	return filez.Exists(s.path)
+	return files.Exists(s.path)
 }
 
 func (s *Store) Initialize(masterPassword string, force bool) error {
@@ -51,7 +53,7 @@ func (s *Store) Load(masterPassword string) (*Document, error) {
 	data, err := os.ReadFile(s.path)
 	if err != nil {
 		if errors.Is(err, os.ErrNotExist) {
-			return nil, errors.New("vault not initialized, run `keepass init` first")
+			return nil, ErrVaultNotInitialized
 		}
 
 		return nil, fmt.Errorf("read vault: %w", err)
@@ -87,11 +89,11 @@ func (s *Store) Save(masterPassword string, document *Document) error {
 		return err
 	}
 
-	if err := filez.EnsureDir(filepath.Dir(s.path), 0o700); err != nil {
+	if err := files.EnsureDir(filepath.Dir(s.path), 0o700); err != nil {
 		return fmt.Errorf("ensure vault dir: %w", err)
 	}
 
-	if err := filez.WriteFileAtomic(s.path, data, 0o600); err != nil {
+	if err := files.WriteFileAtomic(s.path, data, 0o600); err != nil {
 		return fmt.Errorf("write vault: %w", err)
 	}
 
