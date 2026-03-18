@@ -10,8 +10,8 @@ import (
 
 	"github.com/photowey/keepass/configs"
 	"github.com/photowey/keepass/internal/home"
-	"github.com/photowey/keepass/internal/transfer"
 	"github.com/photowey/keepass/internal/testutil"
+	"github.com/photowey/keepass/internal/transfer"
 	"github.com/photowey/keepass/internal/vault"
 )
 
