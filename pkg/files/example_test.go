@@ -30,7 +30,9 @@ func ExampleWriteFileAtomic() {
 		fmt.Println(err)
 		return
 	}
-	defer os.RemoveAll(dir)
+	defer func() {
+		_ = os.RemoveAll(dir)
+	}()
 
 	path := filepath.Join(dir, "vault.txt")
 	if err := files.WriteFileAtomic(path, []byte("vault-data"), 0o600); err != nil {

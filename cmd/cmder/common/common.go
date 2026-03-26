@@ -214,29 +214,29 @@ func PrintAuditJSON(w io.Writer, report audit.Report) error {
 
 func PrintAuditText(w io.Writer, report audit.Report) (int, error) {
 	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("Overall: %s\n", report.OverallStatus))
-	builder.WriteString(fmt.Sprintf("Root dir: %s\n", report.RootDir))
-	builder.WriteString(fmt.Sprintf("Config file: %s\n", report.ConfigFile))
-	builder.WriteString(fmt.Sprintf("Vault file: %s\n", report.VaultFile))
-	builder.WriteString(fmt.Sprintf("Config present: %t\n", report.Config.Present))
-	builder.WriteString(fmt.Sprintf("Vault present: %t\n", report.Vault.Present))
-	builder.WriteString(fmt.Sprintf("Configured Argon2id: time=%d memory_kib=%d threads=%d\n", report.Config.Argon2id.Time, report.Config.Argon2id.MemoryKiB, report.Config.Argon2id.Threads))
-	builder.WriteString(fmt.Sprintf("Password preset: %s\n", report.Config.PasswordGenerator.Preset))
-	builder.WriteString(fmt.Sprintf("Custom alphabet override: %t\n", report.Config.PasswordGenerator.UsesCustomAlphabet))
+	_, _ = fmt.Fprintf(&builder, "Overall: %s\n", report.OverallStatus)
+	_, _ = fmt.Fprintf(&builder, "Root dir: %s\n", report.RootDir)
+	_, _ = fmt.Fprintf(&builder, "Config file: %s\n", report.ConfigFile)
+	_, _ = fmt.Fprintf(&builder, "Vault file: %s\n", report.VaultFile)
+	_, _ = fmt.Fprintf(&builder, "Config present: %t\n", report.Config.Present)
+	_, _ = fmt.Fprintf(&builder, "Vault present: %t\n", report.Vault.Present)
+	_, _ = fmt.Fprintf(&builder, "Configured Argon2id: time=%d memory_kib=%d threads=%d\n", report.Config.Argon2id.Time, report.Config.Argon2id.MemoryKiB, report.Config.Argon2id.Threads)
+	_, _ = fmt.Fprintf(&builder, "Password preset: %s\n", report.Config.PasswordGenerator.Preset)
+	_, _ = fmt.Fprintf(&builder, "Custom alphabet override: %t\n", report.Config.PasswordGenerator.UsesCustomAlphabet)
 
 	if report.Vault.Argon2id != nil {
-		builder.WriteString(fmt.Sprintf("Vault Argon2id: time=%d memory_kib=%d threads=%d\n", report.Vault.Argon2id.Time, report.Vault.Argon2id.MemoryKiB, report.Vault.Argon2id.Threads))
+		_, _ = fmt.Fprintf(&builder, "Vault Argon2id: time=%d memory_kib=%d threads=%d\n", report.Vault.Argon2id.Time, report.Vault.Argon2id.MemoryKiB, report.Vault.Argon2id.Threads)
 	}
 
 	builder.WriteString("Checks:\n")
 	for _, check := range report.Checks {
-		builder.WriteString(fmt.Sprintf("- [%s] %s: %s\n", check.Status, check.Name, check.Message))
+		_, _ = fmt.Fprintf(&builder, "- [%s] %s: %s\n", check.Status, check.Name, check.Message)
 	}
 
 	if len(report.Recommendations) > 0 {
 		builder.WriteString("Recommendations:\n")
 		for _, recommendation := range report.Recommendations {
-			builder.WriteString(fmt.Sprintf("- %s\n", recommendation))
+			_, _ = fmt.Fprintf(&builder, "- %s\n", recommendation)
 		}
 	}
 
@@ -256,11 +256,11 @@ func PrintCredentialAuditJSON(w io.Writer, report credentialaudit.Report) error 
 
 func PrintCredentialAuditText(w io.Writer, report credentialaudit.Report) (int, error) {
 	var builder strings.Builder
-	builder.WriteString(fmt.Sprintf("Overall: %s\n", report.OverallStatus))
-	builder.WriteString(fmt.Sprintf("Max password age days: %d\n", report.MaxAgeDays))
+	_, _ = fmt.Fprintf(&builder, "Overall: %s\n", report.OverallStatus)
+	_, _ = fmt.Fprintf(&builder, "Max password age days: %d\n", report.MaxAgeDays)
 	builder.WriteString("Findings:\n")
 	for _, finding := range report.Findings {
-		builder.WriteString(fmt.Sprintf("- [%s] %s: %s\n", finding.Type, strings.Join(finding.Aliases, ", "), finding.Message))
+		_, _ = fmt.Fprintf(&builder, "- [%s] %s: %s\n", finding.Type, strings.Join(finding.Aliases, ", "), finding.Message)
 	}
 	builder.WriteString("Tip: use `keepass audit --json` for machine-readable output.\n")
 	return fmt.Fprint(w, builder.String())
